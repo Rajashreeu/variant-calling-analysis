@@ -1,0 +1,143 @@
+
+Download genome:
+
+Input: Bash
+cd ~/dc_workshop
+ mkdir -p data/ref_genome
+curl -L -o data/ref_genome/ecoli_rel606.fasta.gz ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/017/985/GCA_000017985.1_ASM1798v1/GCA_000017985.1_ASM1798v1_genomic.fna.gz
+ gunzip data/ref_genome/ecoli_rel606.fasta.gz
+ head data/ref_genome/ecoli_rel606.fasta
+
+#Input: Getting easy-to-work FASTQ files
+
+curl -L -o sub.tar.gz https://ndownloader.figshare.com/files/14418248
+ tar xvf sub.tar.gz
+ mv sub/ ~/dc_workshop/data/trimmed_fastq_small
+
+Input: Create result directories
+
+mkdir -p results/sam results/bam results/bcf results/vcf
+
+
+
+
+#Index the reference genome
+
+#Input: Indexing with BWA
+
+ bwa index data/ref_genome/ecoli_rel606.fasta
+
+#Input: Aligning with BWA
+
+bwa mem data/ref_genome/ecoli_rel606.fasta data/trimmed_fastq_small/SRR2584866_1.trim.sub.fastq data/trimmed_fastq_small/SRR2584866_2.trim.sub.fastq > data/results/sam/SRR2584866.aligned.sam
+
+bwa mem data/ref_genome/ecoli_rel606.fasta data/trimmed_fastq_small/SRR2584863_1.trim.sub.fastq data/trimmed_fastq_small/SRR2584863_2.trim.sub.fastq > data/results/sam/SRR2584863.aligned.sam
+
+bwa mem data/ref_genome/ecoli_rel606.fasta data/trimmed_fastq_small/SRR2589044_1.trim.sub.fastq data/trimmed_fastq_small/SRR2589044_2.trim.sub.fastq > data/results/sam/SRR2589044.aligned.sam
+
+(do this for SRR2584866  SRR2584863 SRR2589044)
+
+
+#SAM to BAM
+
+samtools view -S -b results/sam/SRR2584866.aligned.sam > results/bam/SRR2584866.aligned.bam
+
+samtools view -S -b results/sam/SRR2584863.aligned.sam > results/bam/SRR2584863.aligned.bam
+
+samtools view -S -b results/sam/SRR2589044.aligned.sam > results/bam/SRR2589044.aligned.bam
+
+#Hands On: Sort BAM file by coordinates
+
+(Next we sort the BAM file using the sort command from samtools. -o tells the command where to write the output.)
+#Input: “sort” command
+
+
+samtools sort -o results/bam/SRR2584866.aligned.sorted.bam results/bam/SRR2584866.aligned.bam
+
+samtools sort -o results/bam/SRR2584863.aligned.sorted.bam results/bam/SRR2584863.aligned.bam
+
+samtools sort -o results/bam/SRR2589044.aligned.sorted.bam results/bam/SRR2589044.aligned.bam
+
+# Input: “flagstat” command
+
+samtools flagstat results/bam/SRR2584866.aligned.sorted.bam
+
+samtools flagstat results/bam/SRR2584863.aligned.sorted.bam
+
+
+
+samtools flagstat results/bam/SRR2589044.aligned.sorted.bam
+
+BCFTOOLS COMMAND FOR VARIANT CALLING
+
+#Calculate the read coverage of positions in the genome
+
+bcftools mpileup -O b -o data/results/bcf/SRR2584866_raw.bcf -f data/ref_genome/ecoli_rel606.fasta data/results/bam/SRR2584866.aligned.sorted.bam
+
+bcftools mpileup -O b -o data/results/bcf/SRR2584863_raw.bcf -f data/ref_genome/ecoli_rel606.fasta data/results/bam/SRR2584863.aligned.sorted.bam
+
+bcftools mpileup -O b -o data/results/bcf/SRR2589044_raw.bcf -f data/ref_genome/ecoli_rel606.fasta data/results/bam/SRR2589044.aligned.sorted.bam
+
+# Detect the single nucleotide variants (SNVs)
+
+bcftools call --ploidy 1 -m -v -o results/vcf/SRR2584866_variants.vcf results/bcf/SRR2584866_raw.bcf
+
+bcftools call --ploidy 1 -m -v -o results/vcf/SRR2584863_variants.vcf results/bcf/SRR2584863_raw.bcf
+
+bcftools call --ploidy 1 -m -v -o results/vcf/SRR2589044_variants.vcf results/bcf/SRR2589044_raw.bcf
+
+#(Filter and report the SNV variants in variant calling format (VCF)
+Filter the SNVs for the final output in VCF format, using vcfutils.pl:
+Input: Filtering with ‘vcfutils.pl’ command)
+
+vcfutils.pl varFilter results/vcf/SRR2584866_variants.vcf > results/vcf/SRR2584866_final_variants.vcf
+
+vcfutils.pl varFilter results/vcf/SRR2584863_variants.vcf > results/vcf/SRR2584863_final_variants.vcf
+
+vcfutils.pl varFilter results/vcf/SRR2589044_variants.vcf > results/vcf/SRR2589044_final_variants.vcf
+
+#Explore the VCF format:
+
+less -S results/vcf/SRR2584866_final_variants.vcf
+
+less -S results/vcf/SRR2584863_final_variants.vcf
+
+less -S results/vcf/SRR2589044_final_variants.vcf
+
+#Use the grep and wc commands you have learned to assess how many variants are in the vcf
+file.
+
+ grep -v "#" results/vcf/SRR2584866_final_variants.vcf | wc -l
+ 
+  grep -v "#" results/vcf/SRR2584863_final_variants.vcf | wc -l
+  
+   grep -v "#" results/vcf/SRR2589044_final_variants.vcf | wc -l
+ 
+# Assess the alignment (visualization)
+
+   #In order for us to visualize the alignment files, we will need to index the BAM file using ‘samtools’:
+  
+  
+   samtools index results/bam/SRR2584866.aligned.sorted.bam
+   
+   samtools index results/bam/SRR2584863.aligned.sorted.bam
+      
+   samtools index results/bam/SRR2589044.aligned.sorted.bam
+   
+#Viewing with tview
+ 
+ samtools tview results/bam/SRR2584866.aligned.sorted.bam ref_genome/ecoli_rel606.fasta
+ 
+ samtools tview results/bam/SRR2584863.aligned.sorted.bam ref_genome/ecoli_rel606.fasta
+  
+  samtools tview results/bam/SRR2589044.aligned.sorted.bam ref_genome/ecoli_rel606.fasta
+ 
+ #Visualize the alignment of the reads for our SRR2584866 sample. What variant is present at position 4377265? What is the canonical nucleotide in that position?
+ 
+ samtools tview ~/dc_workshop/data/results/bam/SRR2584866.aligned.sorted.bam ~/dc_workshop/data/ref_genome/ecoli_rel606.fasta
+ 
+  samtools tview ~/dc_workshop/data/results/bam/SRR2584863.aligned.sorted.bam ~/dc_workshop/data/ref_genome/ecoli_rel606.fasta
+  
+   samtools tview ~/dc_workshop/data/results/bam/SRR2589044.aligned.sorted.bam ~/dc_workshop/data/ref_genome/ecoli_rel606.fasta
+ 
+#Then type g. In the dialogue box, type CP000819.1:4377265. G is the variant. A is canonical. This variant possibly changes the phenotype of this sample
